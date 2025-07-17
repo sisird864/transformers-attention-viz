@@ -15,25 +15,73 @@ from attention_viz.visualizers import AttentionHeatmap
 NUMPY_AVAILABLE = ensure_numpy_available()
 
 
+class MockAttentionLayer(torch.nn.Module):
+    """Mock attention layer that properly returns attention weights"""
+    
+    def __init__(self, hidden_size=256, num_heads=8):
+        super().__init__()
+        self.num_heads = num_heads
+        self.hidden_size = hidden_size
+        
+    def forward(self, hidden_states, attention_mask=None, output_attentions=True):
+        batch_size = hidden_states.shape[0]
+        seq_len = hidden_states.shape[1]
+        
+        # Generate mock attention weights
+        attention_weights = torch.softmax(torch.randn(batch_size, self.num_heads, seq_len, seq_len), dim=-1)
+        
+        # Return tuple of (hidden_states, attention_weights)
+        if output_attentions:
+            return hidden_states, attention_weights
+        return (hidden_states,)
+
+
 class MockModel(torch.nn.Module):
     """Mock model for testing"""
     
     def __init__(self):
         super().__init__()
-        self.attention = torch.nn.MultiheadAttention(256, 8)
+        # Create a structure similar to transformer models
+        self.encoder = torch.nn.ModuleDict({
+            'layers': torch.nn.ModuleList([
+                type('Layer', (torch.nn.Module,), {
+                    'self_attn': MockAttentionLayer(),
+                    'forward': lambda self, x: x
+                })() for _ in range(3)
+            ])
+        })
+        
+        # Add text_model attribute for CLIP-like structure
+        self.text_model = type('TextModel', (), {
+            'encoder': self.encoder
+        })()
     
-    def forward(self, **kwargs):
+    def forward(self, output_attentions=True, **kwargs):
         # Return mock outputs
         batch_size = 1
         seq_len = 10
         hidden_size = 256
         
         hidden_states = torch.randn(batch_size, seq_len, hidden_size)
-        attentions = torch.softmax(torch.randn(batch_size, 8, seq_len, seq_len), dim=-1)
+        
+        # Collect attention weights from each layer
+        all_attentions = []
+        for layer in self.encoder['layers']:
+            # Simulate attention layer forward pass
+            output = layer.self_attn(hidden_states, output_attentions=output_attentions)
+            if output_attentions and len(output) > 1:
+                all_attentions.append(output[1])
+        
+        # Make sure we have attention outputs
+        if not all_attentions and output_attentions:
+            # Generate mock attention if none captured
+            for _ in range(3):  # 3 layers
+                attention = torch.softmax(torch.randn(batch_size, 8, seq_len, seq_len), dim=-1)
+                all_attentions.append(attention)
         
         return type('MockOutput', (), {
             'last_hidden_state': hidden_states,
-            'attentions': (attentions,)
+            'attentions': tuple(all_attentions) if output_attentions else None
         })()
 
 

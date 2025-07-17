@@ -13,6 +13,7 @@ from .visualizers import (
     LayerEvolution,
     HeadComparison
 )
+from .utils import ensure_numpy_available, tensor_to_numpy
 
 __all__ = [
     "AttentionVisualizer",
@@ -22,4 +23,6 @@ __all__ = [
     "AttentionFlow",
     "LayerEvolution",
     "HeadComparison",
+    "ensure_numpy_available",
+    "tensor_to_numpy",
 ]

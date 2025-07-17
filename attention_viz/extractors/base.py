@@ -55,7 +55,7 @@ class AttentionExtractor:
                 elif hasattr(output, 'attentions'):
                     # Some models have attention in output object
                     if output.attentions is not None:
-                        self.attention_maps[name].append(output.attentions.detach().cpu())
+                        self.attention_maps[name].extend([attn.detach().cpu() for attn in output.attentions])
             return hook
         
         # Register hooks for each attention layer
