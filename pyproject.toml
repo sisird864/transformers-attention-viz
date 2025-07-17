@@ -1,0 +1,95 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "transformers-attention-viz"
+version = "0.1.0"
+description = "Interactive attention visualization for multi-modal transformer models"
+readme = "README.md"
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "torch>=1.9.0",
+    "transformers>=4.30.0",
+    "numpy>=1.19.0",
+    "matplotlib>=3.3.0",
+    "seaborn>=0.11.0",
+    "gradio>=3.0.0",
+    "pillow>=8.0.0",
+    "pandas>=1.3.0",
+    "scipy>=1.7.0",
+    "tqdm>=4.62.0",
+    "networkx>=2.6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov>=2.0",
+    "black>=22.0",
+    "flake8>=4.0",
+    "isort>=5.0",
+    "mypy>=0.900",
+    "sphinx>=4.0",
+    "sphinx-rtd-theme>=1.0",
+    "nbsphinx>=0.8.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/YOUR_USERNAME/transformers-attention-viz"
+"Bug Tracker" = "https://github.com/YOUR_USERNAME/transformers-attention-viz/issues"
+"Documentation" = "https://transformers-attention-viz.readthedocs.io"
+
+[project.scripts]
+attention-viz-dashboard = "attention_viz.dashboard.app:main"
+
+[tool.black]
+line-length = 100
+target-version = ['py38']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --cov=attention_viz --cov-report=html --cov-report=term"
+
+[tool.coverage.run]
+source = ["attention_viz"]
+omit = ["*/tests/*", "*/dashboard/app.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
