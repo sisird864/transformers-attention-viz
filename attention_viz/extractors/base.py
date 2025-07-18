@@ -64,7 +64,7 @@ class AttentionExtractor:
         for name, module in attention_modules:
             hook = module.register_forward_hook(create_hook(name))
             self.hooks.append(hook)
-    
+            
     def extract(
         self,
         inputs: Dict[str, torch.Tensor],
@@ -88,6 +88,12 @@ class AttentionExtractor:
         # Forward pass with hooks
         with torch.no_grad():
             outputs = self.model(**inputs, output_attentions=True)
+        
+        # If hooks didn't capture attention but model outputs have them
+        if len(self.attention_maps) == 0 and hasattr(outputs, 'attentions') and outputs.attentions:
+            # Use attention from model outputs directly
+            for i, attn in enumerate(outputs.attentions):
+                self.attention_maps[f'layer_{i}'] = [attn.detach().cpu()]
         
         # Process collected attention maps
         processed_attention = self._process_attention_maps(
@@ -114,6 +120,10 @@ class AttentionExtractor:
     ) -> List[np.ndarray]:
         """Process raw attention maps based on indices"""
         all_layers = list(self.attention_maps.values())
+        
+        # If no attention maps collected, return empty list
+        if not all_layers:
+            return []
         
         # Handle layer selection
         if layer_indices is not None:
@@ -193,19 +203,29 @@ class BaseModelAdapter:
         attention_modules = []
         
         for name, module in model.named_modules():
+            # Skip submodules of attention layers (like out_proj)
+            if "." in name and any(parent in name for parent in ["attention.", "self_attn.", "attn."]):
+                continue
+                
             # Common attention module names
-            if any(attn_name in name.lower() for attn_name in ["attention", "attn", "mha", "multihead"]):
-                if hasattr(module, "forward") and not any(skip in name for skip in ["norm", "ln", "dropout"]):
-                    attention_modules.append((name, module))
+            if any(attn_name in name.lower() for attn_name in ["attention", "attn", "mha", "multihead", "self_attn"]):
+                # Check if it's actually an attention module (not norm, dropout, etc.)
+                if hasattr(module, "forward") and not any(skip in name.lower() for skip in ["norm", "ln", "dropout", "proj"]):
+                    # Also check module class name
+                    module_class = module.__class__.__name__.lower()
+                    if any(attn in module_class for attn in ["attention", "attn"]):
+                        attention_modules.append((name, module))
         
         return attention_modules
     
     def get_modality_boundaries(self, inputs: Dict[str, torch.Tensor]) -> Dict[str, int]:
         """Get the boundaries between different modalities in the input"""
         # Default implementation - override in specific adapters
+        text_length = inputs["input_ids"].shape[1] if "input_ids" in inputs else 0
         return {
             "text_start": 0,
-            "text_end": inputs["input_ids"].shape[1],
+            "text_end": text_length,
             "image_start": 0,
-            "image_end": 0
+            "image_end": 0,
+            "total_length": text_length
         }

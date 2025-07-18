@@ -209,11 +209,11 @@ class AttentionVisualizer:
         avg_attention = attention_matrix.mean(axis=(0, 1))
         
         # Get top-k indices
-        top_indices = np.argsort(avg_attention)[-top_k:][::-1]
+        top_indices = np.argsort(avg_attention)[-top_k:][::-1].copy()
         
         # Decode tokens
         if self.processor is not None:
-            tokens = self.processor.decode(input_ids[0, top_indices], skip_special_tokens=False)
+            tokens = self.processor.decode(input_ids[0][top_indices], skip_special_tokens=False)
             tokens = tokens.split()
         else:
             tokens = [f"token_{i}" for i in top_indices]
