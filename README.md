@@ -1,7 +1,7 @@
 # 🔍 Transformers Attention Viz
 
 Interactive attention visualization for multi-modal transformer models (CLIP, BLIP, Flamingo, etc.)
-
+![Transformers Attention Viz](https://raw.githubusercontent.com/sisird864/transformers-attention-viz/main/docs/images/hero_image.png)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Transformers](https://img.shields.io/badge/transformers-4.30+-orange.svg)](https://github.com/huggingface/transformers)
