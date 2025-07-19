@@ -6,12 +6,12 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setup(
     name="transformers-attention-viz",
     version="0.1.0",
-    author="Sisir Doppalapudi",
-    author_email="sisird864@gmail.com",
+    author="Your Name",
+    author_email="your.email@example.com",
     description="Interactive attention visualization for multi-modal transformer models",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/sisird864/transformers-attention-viz",
+    url="https://github.com/YOUR_USERNAME/transformers-attention-viz",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 3 - Alpha",
