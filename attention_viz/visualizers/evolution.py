@@ -145,7 +145,7 @@ class LayerEvolution:
         # Plot 4: Token-specific tracking
         ax4 = axes[3]
         if selected_tokens is None:
-            selected_tokens = [0, 5, 10]  # Default selection
+            selected_tokens = [0, 5, min(9, attention_maps[0].shape[-1]-1) if attention_maps else 0]  # Default selection
         
         for token_idx in selected_tokens[:5]:  # Limit to 5 tokens
             token_attention = []
@@ -153,9 +153,10 @@ class LayerEvolution:
                 if layer_attention.ndim > 2:
                     layer_attention = layer_attention.mean(axis=0)
                 # Get average attention this token pays to others
-                token_attention.append(layer_attention[token_idx].mean())
+                if token_idx < layer_attention.shape[0]:
+                    token_attention.append(layer_attention[token_idx].mean())
             
-            ax4.plot(range(n_layers), token_attention, '-o', 
+            if token_attention: ax4.plot(range(len(token_attention)), token_attention, '-o', 
                     label=f"Token {token_idx}", alpha=0.7)
         
         ax4.set_xlabel("Layer", fontsize=12)
