@@ -1,11 +1,6 @@
-from .heatmap import AttentionHeatmap
-from .flow import AttentionFlow
-from .evolution import LayerEvolution
 from .comparison import HeadComparison
+from .evolution import LayerEvolution
+from .flow import AttentionFlow
+from .heatmap import AttentionHeatmap
 
-__all__ = [
-    "AttentionHeatmap",
-    "AttentionFlow", 
-    "LayerEvolution",
-    "HeadComparison"
-]
+__all__ = ["AttentionHeatmap", "AttentionFlow", "LayerEvolution", "HeadComparison"]

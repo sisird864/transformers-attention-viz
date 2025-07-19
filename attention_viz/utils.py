@@ -2,18 +2,19 @@
 Utility functions for handling numpy compatibility issues
 """
 
-import torch
-import numpy as np
 import warnings
+
+import numpy as np
+import torch
 
 
 def tensor_to_numpy(tensor: torch.Tensor) -> np.ndarray:
     """
     Safely convert PyTorch tensor to numpy array, handling initialization issues.
-    
+
     Args:
         tensor: PyTorch tensor to convert
-        
+
     Returns:
         numpy array
     """
@@ -37,7 +38,7 @@ def tensor_to_numpy(tensor: torch.Tensor) -> np.ndarray:
 def ensure_numpy_available():
     """
     Check if numpy is properly initialized with PyTorch.
-    
+
     Returns:
         bool: True if numpy is available, False otherwise
     """
