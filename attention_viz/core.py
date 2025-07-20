@@ -157,7 +157,7 @@ class AttentionVisualizer:
         # Process inputs
         inputs = self.processor(text=text, images=image, return_tensors="pt", padding=True)
 
-        return inputs
+        return inputs  # type: ignore[no-any-return]
 
     def _calculate_entropy(self, attention_matrix: np.ndarray) -> np.ndarray:
         """Calculate attention entropy for each head"""
@@ -205,4 +205,4 @@ class AttentionVisualizer:
         index = np.arange(1, n + 1)
         gini = (2 * np.sum(index * attention_sorted)) / (n * np.sum(attention_sorted)) - (n + 1) / n
 
-        return gini
+        return float(gini)
