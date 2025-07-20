@@ -1,6 +1,7 @@
 """
 Head-wise attention comparison visualization
 """
+from .heatmap import VisualizationResult
 
 from typing import Any, Dict, List, Optional
 

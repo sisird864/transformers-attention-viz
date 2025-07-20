@@ -1,6 +1,7 @@
 """
 Visualization of attention evolution across layers
 """
+from .heatmap import VisualizationResult
 
 from typing import Any, Dict, List, Optional
 

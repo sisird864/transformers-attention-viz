@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="transformers-attention-viz",
-    version="0.1.0",
+    version="0.1.1",
     author="Sisir Doppalapudi",
     author_email="sisird864@gmail.com",
     description="Interactive attention visualization for multi-modal transformer models",
