@@ -57,7 +57,7 @@ class LayerEvolution:
         self, attention_maps: List[np.ndarray], metric: str
     ) -> Dict[str, np.ndarray]:
         """Calculate specified metric for each layer"""
-        metrics = {"entropy": [], "concentration": [], "diversity": [], "mean_attention": []}
+        metrics: Dict[str, List[float]] = {"entropy": [], "concentration": [], "diversity": [], "mean_attention": []}
 
         for layer_attention in attention_maps:
             # Average across heads if needed

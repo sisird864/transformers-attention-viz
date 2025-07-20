@@ -13,11 +13,7 @@ from transformers import CLIPModel, CLIPProcessor
 from .extractors import AttentionExtractor
 from .visualizers import AttentionFlow, AttentionHeatmap, LayerEvolution
 
-try:
-    from .utils import tensor_to_numpy
-except ImportError:
-    # Fallback for testing
-    from utils import tensor_to_numpy
+from .utils import tensor_to_numpy
 
 
 class AttentionVisualizer:

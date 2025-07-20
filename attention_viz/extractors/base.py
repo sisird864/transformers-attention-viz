@@ -8,16 +8,7 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 import torch
 
-# Import from parent package
-try:
-    from ..utils import tensor_to_numpy
-except ImportError:
-    # Fallback for testing
-    import os
-    import sys
-
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from utils import tensor_to_numpy
+from ..utils import tensor_to_numpy
 
 
 class AttentionExtractor:
@@ -26,8 +17,8 @@ class AttentionExtractor:
     def __init__(self, model: torch.nn.Module):
         self.model = model
         self.model.eval()  # Set to evaluation mode
-        self.hooks = []
-        self.attention_maps = defaultdict(list)
+        self.hooks: List[torch.utils.hooks.RemovableHandle] = []
+        self.attention_maps: Dict[str, List[torch.Tensor]] = defaultdict(list)
         self._identify_model_type()
         self._register_hooks()
 

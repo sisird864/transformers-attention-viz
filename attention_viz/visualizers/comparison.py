@@ -105,7 +105,7 @@ class HeadComparison:
         ax_stats = fig.add_subplot(gs[2, :])
 
         # Calculate statistics for each head
-        head_stats = {"entropy": [], "sparsity": [], "diagonal_focus": []}
+        head_stats: Dict[str, List[float]] = {"entropy": [], "sparsity": [], "diagonal_focus": []}
 
         for head_idx in range(n_heads):
             head_attention = layer_attention[head_idx]
