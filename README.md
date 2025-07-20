@@ -51,15 +51,15 @@ viz.show()
 
 ### Cross-Modal Attention Heatmap
 
-![Cross-modal attention example](docs/images/cross_attention_example.png)
+![Cross-modal attention example](https://raw.githubusercontent.com/sisird864/transformers-attention-viz/main/docs/images/cross_attention_example.png)
 
 ### Layer-wise Attention Evolution
 
-![Layer evolution example](docs/images/layer_evolution_example.png)
+![Cross-modal attention example](https://raw.githubusercontent.com/sisird864/transformers-attention-viz/main/docs/images/layer_evolution_example.png)
 
 ### Interactive Dashboard
 
-![Dashboard example](docs/images/dashboard_example.png)
+![Cross-modal attention example](https://raw.githubusercontent.com/sisird864/transformers-attention-viz/main/docs/images/dashboard_example.png)
 
 ## 🛠️ Advanced Usage
 
@@ -166,3 +166,9 @@ MIT License - see <LICENSE> for details.
 - [ ] Attention pattern export to TensorBoard
 - [ ] Real-time video attention tracking
 - [ ] Attention-based model debugging tools
+
+## 🚧 Known Issues (v0.1.0)
+
+- Evolution and Flow visualizations may fail with certain text lengths
+- Working on fixes for v0.1.1
+- Heatmap visualization works reliably for all inputs
