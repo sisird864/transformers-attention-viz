@@ -1,13 +1,14 @@
 """
 Head-wise attention comparison visualization
 """
-from .heatmap import VisualizationResult
 
 from typing import Any, Dict, List, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+
+from .heatmap import VisualizationResult
 
 
 class HeadComparison:

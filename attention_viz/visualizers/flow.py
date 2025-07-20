@@ -1,7 +1,6 @@
 """
 Attention flow visualization showing connections between tokens
 """
-from .heatmap import VisualizationResult
 
 from typing import Any, Dict, List, Optional
 
@@ -10,6 +9,8 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from matplotlib.collections import LineCollection
+
+from .heatmap import VisualizationResult
 
 
 class AttentionFlow:

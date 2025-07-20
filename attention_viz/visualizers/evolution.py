@@ -1,7 +1,6 @@
 """
 Visualization of attention evolution across layers
 """
-from .heatmap import VisualizationResult
 
 from typing import Any, Dict, List, Optional
 
@@ -9,6 +8,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from matplotlib.animation import FuncAnimation
+
+from .heatmap import VisualizationResult
 
 
 class LayerEvolution:
