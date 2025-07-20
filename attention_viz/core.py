@@ -11,9 +11,8 @@ from PIL import Image
 from transformers import CLIPModel, CLIPProcessor
 
 from .extractors import AttentionExtractor
-from .visualizers import AttentionFlow, AttentionHeatmap, LayerEvolution
-
 from .utils import tensor_to_numpy
+from .visualizers import AttentionFlow, AttentionHeatmap, LayerEvolution
 
 
 class AttentionVisualizer:
