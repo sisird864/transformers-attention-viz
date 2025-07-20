@@ -167,8 +167,8 @@ MIT License - see <LICENSE> for details.
 - [ ] Real-time video attention tracking
 - [ ] Attention-based model debugging tools
 
-## 🚧 Known Issues (v0.1.0)
+## 🚧 Known Issues (v0.1.3)
 
 - Evolution and Flow visualizations may fail with certain text lengths
-- Working on fixes for v0.1.1
+- Working on fixes for v0.1.4
 - Heatmap visualization works reliably for all inputs
