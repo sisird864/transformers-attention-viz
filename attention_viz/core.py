@@ -1,5 +1,5 @@
 """
-Core attention visualization class that orchestrates the entire pipeline
+Core attention visualization class that correctly handles different model types
 """
 
 import warnings
@@ -31,11 +31,50 @@ class AttentionVisualizer:
         self.model = model
         self.processor = processor
         self.extractor = AttentionExtractor(model)
+        
+        # Identify model capabilities
+        self.model_type = self._identify_model_type()
+        self.has_cross_attention = self._check_cross_attention_support()
 
         # Initialize visualizers
         self.heatmap_viz = AttentionHeatmap()
         self.flow_viz = AttentionFlow()
         self.evolution_viz = LayerEvolution()
+        
+        # Warn about model limitations
+        if not self.has_cross_attention:
+            warnings.warn(
+                f"Model type '{self.model_type}' does not support cross-modal attention. "
+                "Only self-attention (text-to-text or image-to-image) can be visualized. "
+                "Consider using BLIP or Flamingo for cross-modal attention visualization."
+            )
+
+    def _identify_model_type(self) -> str:
+        """Identify the model type"""
+        model_class = self.model.__class__.__name__
+        if "CLIP" in model_class:
+            return "CLIP"
+        elif "BLIP" in model_class:
+            return "BLIP"
+        elif "Flamingo" in model_class:
+            return "Flamingo"
+        else:
+            return "Unknown"
+    
+    def _check_cross_attention_support(self) -> bool:
+        """Check if model supports cross-modal attention"""
+        # CLIP does NOT have cross-modal attention
+        if self.model_type == "CLIP":
+            return False
+        # BLIP and Flamingo DO have cross-modal attention
+        elif self.model_type in ["BLIP", "Flamingo"]:
+            return True
+        else:
+            # Check for cross-attention layers in unknown models
+            for name, module in self.model.named_modules():
+                if "cross" in name.lower() and "attention" in name.lower():
+                    return True
+            return False
 
     def visualize(
         self,
@@ -44,6 +83,7 @@ class AttentionVisualizer:
         layer_indices: Optional[Union[int, List[int]]] = None,
         head_indices: Optional[Union[int, List[int]]] = None,
         visualization_type: str = "heatmap",
+        attention_type: str = "auto",  # New parameter
         **kwargs,
     ):
         """
@@ -55,20 +95,50 @@ class AttentionVisualizer:
             layer_indices: Which layers to visualize (default: last layer)
             head_indices: Which attention heads to visualize (default: all)
             visualization_type: Type of visualization ("heatmap", "flow", "evolution")
+            attention_type: Type of attention to visualize ("auto", "text_self", "vision_self", "cross")
             **kwargs: Additional arguments for specific visualizers
 
         Returns:
             Visualization object with show() and save() methods
         """
-        # Preprocess inputs
+        # Auto-select attention type based on model
+        if attention_type == "auto":
+            if self.has_cross_attention:
+                attention_type = "cross"
+                print(f"Model supports cross-modal attention. Visualizing cross-attention.")
+            else:
+                attention_type = "vision_self"
+                print(f"Model does NOT support cross-modal attention. Visualizing vision self-attention.")
+                print("To see text self-attention, use attention_type='text_self'")
+        
+        # Validate attention type for model
+        if attention_type == "cross" and not self.has_cross_attention:
+            raise ValueError(
+                f"Model '{self.model_type}' does not support cross-modal attention. "
+                f"Use attention_type='text_self' or 'vision_self' instead."
+            )
+        
+        # Update the visualization title based on attention type
+        if attention_type == "text_self":
+            kwargs['title'] = f"Text Self-Attention ({self.model_type})"
+        elif attention_type == "vision_self":
+            kwargs['title'] = f"Vision Self-Attention ({self.model_type})"
+        elif attention_type == "cross":
+            kwargs['title'] = f"Cross-Modal Attention ({self.model_type})"
+        
+        # Store attention type for use by visualizers
+        kwargs['attention_type'] = attention_type
+        
+        # Rest of the original method...
         inputs = self._preprocess_inputs(image, text)
-
-        # Extract attention
         attention_data = self.extractor.extract(
             inputs, layer_indices=layer_indices, head_indices=head_indices
         )
+        
+        # Pass model info to visualizers
+        attention_data['model_type'] = self.model_type
+        attention_data['attention_type'] = attention_type
 
-        # Create visualization
         if visualization_type == "heatmap":
             return self.heatmap_viz.create(attention_data, inputs, **kwargs)
         elif visualization_type == "flow":
@@ -77,65 +147,6 @@ class AttentionVisualizer:
             return self.evolution_viz.create(attention_data, inputs, **kwargs)
         else:
             raise ValueError(f"Unknown visualization type: {visualization_type}")
-
-    def get_attention_stats(
-        self,
-        image: Union[Image.Image, torch.Tensor, str],
-        text: Union[str, List[str]],
-        layer_index: int = -1,
-    ) -> Dict[str, np.ndarray]:
-        """
-        Get statistical analysis of attention patterns
-
-        Returns:
-            Dictionary containing entropy, top tokens, attention distribution stats
-        """
-        inputs = self._preprocess_inputs(image, text)
-        attention_data = self.extractor.extract(inputs, layer_indices=[layer_index])
-
-        # Calculate statistics
-        attention_matrix = attention_data["attention_maps"][0]  # Shape: [heads, seq_len, seq_len]
-
-        # Calculate entropy for each head
-        entropy = self._calculate_entropy(attention_matrix)
-
-        # Find top attended tokens
-        top_tokens = self._get_top_attended_tokens(attention_matrix, inputs["input_ids"])
-
-        # Calculate attention concentration
-        concentration = self._calculate_concentration(attention_matrix)
-
-        return {
-            "entropy": entropy,
-            "top_tokens": top_tokens,
-            "concentration": concentration,
-            "mean_attention": attention_matrix.mean(axis=(0, 1)),
-            "std_attention": attention_matrix.std(axis=(0, 1)),
-        }
-
-    def compare_attention(
-        self,
-        images: List[Union[Image.Image, torch.Tensor, str]],
-        texts: List[str],
-        layer_index: int = -1,
-        comparison_type: str = "side_by_side",
-    ):
-        """
-        Compare attention patterns across multiple input pairs
-        """
-        all_attention_data = []
-        all_inputs = []
-
-        for image, text in zip(images, texts):
-            inputs = self._preprocess_inputs(image, text)
-            attention_data = self.extractor.extract(inputs, layer_indices=[layer_index])
-            all_attention_data.append(attention_data)
-            all_inputs.append(inputs)
-
-        # Create comparison visualization
-        return self.heatmap_viz.create_comparison(
-            all_attention_data, all_inputs, comparison_type=comparison_type
-        )
 
     def _preprocess_inputs(
         self, image: Union[Image.Image, torch.Tensor, str], text: Union[str, List[str]]
@@ -157,7 +168,49 @@ class AttentionVisualizer:
         # Process inputs
         inputs = self.processor(text=text, images=image, return_tensors="pt", padding=True)
 
-        return inputs  # type: ignore[no-any-return]
+        return inputs
+
+    def get_attention_stats(
+        self,
+        image: Union[Image.Image, torch.Tensor, str],
+        text: Union[str, List[str]],
+        layer_index: int = -1,
+        attention_type: str = "auto",
+    ) -> Dict[str, np.ndarray]:
+        """
+        Get statistical analysis of attention patterns
+
+        Returns:
+            Dictionary containing entropy, top tokens, attention distribution stats
+        """
+        # Auto-select attention type
+        if attention_type == "auto":
+            attention_type = "vision_self" if not self.has_cross_attention else "cross"
+        
+        inputs = self._preprocess_inputs(image, text)
+        attention_data = self.extractor.extract(inputs, layer_indices=[layer_index])
+
+        # Calculate statistics
+        attention_matrix = attention_data["attention_maps"][0]  # Shape: [heads, seq_len, seq_len]
+
+        # Calculate entropy for each head
+        entropy = self._calculate_entropy(attention_matrix)
+
+        # Find top attended tokens
+        top_tokens = self._get_top_attended_tokens(attention_matrix, inputs["input_ids"])
+
+        # Calculate attention concentration
+        concentration = self._calculate_concentration(attention_matrix)
+
+        return {
+            "entropy": entropy,
+            "top_tokens": top_tokens,
+            "concentration": concentration,
+            "mean_attention": attention_matrix.mean(axis=(0, 1)),
+            "std_attention": attention_matrix.std(axis=(0, 1)),
+            "attention_type": attention_type,
+            "model_type": self.model_type,
+        }
 
     def _calculate_entropy(self, attention_matrix: np.ndarray) -> np.ndarray:
         """Calculate attention entropy for each head"""

@@ -80,7 +80,9 @@ class AttentionHeatmap:
         # Add labels
         self._add_labels(ax, attention_data, inputs)
 
-        plt.title("Self-Attention Heatmap", fontsize=14, pad=20)  # Changed title
+        # Use custom title if provided, otherwise use a descriptive default
+        title = kwargs.get('title', 'Self-Attention Heatmap')
+        plt.title(title, fontsize=14, pad=20)
         plt.tight_layout()
 
         return VisualizationResult(fig)
