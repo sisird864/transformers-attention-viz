@@ -132,7 +132,10 @@ class AttentionVisualizer:
         # Rest of the original method...
         inputs = self._preprocess_inputs(image, text)
         attention_data = self.extractor.extract(
-            inputs, layer_indices=layer_indices, head_indices=head_indices
+            inputs, 
+            layer_indices=layer_indices, 
+            head_indices=head_indices,
+            attention_type=attention_type
         )
         
         # Pass model info to visualizers
@@ -188,7 +191,11 @@ class AttentionVisualizer:
             attention_type = "vision_self" if not self.has_cross_attention else "cross"
         
         inputs = self._preprocess_inputs(image, text)
-        attention_data = self.extractor.extract(inputs, layer_indices=[layer_index])
+        attention_data = self.extractor.extract(
+            inputs, 
+            layer_indices=[layer_index],
+            attention_type=attention_type
+        )
 
         # Calculate statistics
         attention_matrix = attention_data["attention_maps"][0]  # Shape: [heads, seq_len, seq_len]
@@ -196,7 +203,8 @@ class AttentionVisualizer:
         # Calculate entropy for each head
         entropy = self._calculate_entropy(attention_matrix)
 
-        # Find top attended tokens
+        # Find top attended tokens/patches
+        # Note: _get_top_attended_tokens now automatically detects if it's vision or text
         top_tokens = self._get_top_attended_tokens(attention_matrix, inputs["input_ids"])
 
         # Calculate attention concentration
@@ -210,7 +218,9 @@ class AttentionVisualizer:
             "std_attention": attention_matrix.std(axis=(0, 1)),
             "attention_type": attention_type,
             "model_type": self.model_type,
+            "sequence_length": attention_matrix.shape[-1],  # Add this to help identify what type
         }
+
 
     def _calculate_entropy(self, attention_matrix: np.ndarray) -> np.ndarray:
         """Calculate attention entropy for each head"""
@@ -225,30 +235,56 @@ class AttentionVisualizer:
     def _get_top_attended_tokens(
         self, attention_matrix: np.ndarray, input_ids: torch.Tensor, top_k: int = 5
     ) -> List[Tuple[str, float]]:
-        """Get the top-k most attended tokens"""
+        """Get the top-k most attended tokens/patches"""
         # Average attention across heads and source positions
         avg_attention = attention_matrix.mean(axis=(0, 1))
 
         # Get top-k indices
         top_indices = np.argsort(avg_attention)[-top_k:][::-1].copy()
 
-        # Decode tokens individually to avoid concatenation
-        tokens = []
-        if self.processor is not None:
+        # Check if this is vision attention based on matrix size
+        # Text attention is typically small (< 20), vision is larger (50 for CLIP)
+        is_vision_attention = attention_matrix.shape[-1] > 20
+
+        if is_vision_attention:
+            # For vision attention, return patch information
+            top_items = []
             for idx in top_indices:
-                # Decode each token separately
-                token = self.processor.decode([input_ids[0][idx]], skip_special_tokens=False)
-                tokens.append(token.strip())
+                if idx == 0:
+                    # First patch is typically CLS token
+                    label = "CLS_token"
+                else:
+                    # Calculate which patch this is (assuming 7x7 grid for CLIP)
+                    # Subtract 1 because patch 0 is CLS token
+                    patch_idx = idx - 1
+                    row = patch_idx // 7
+                    col = patch_idx % 7
+                    label = f"Patch_({row},{col})"
+                
+                top_items.append((label, avg_attention[idx]))
+            
+            return top_items
         else:
-            tokens = [f"token_{i}" for i in top_indices]
+            # For text attention, decode tokens
+            tokens = []
+            if self.processor is not None:
+                for idx in top_indices:
+                    # Decode each token separately
+                    if idx < len(input_ids[0]):
+                        token = self.processor.decode([input_ids[0][idx]], skip_special_tokens=False)
+                        tokens.append(token.strip())
+                    else:
+                        tokens.append(f"token_{idx}")
+            else:
+                tokens = [f"token_{i}" for i in top_indices]
 
-        # Create (token, attention_score) pairs
-        top_tokens = [
-            (tokens[i], avg_attention[idx])
-            for i, idx in enumerate(top_indices)
-        ]
+            # Create (token, attention_score) pairs
+            top_tokens = [
+                (tokens[i], avg_attention[idx])
+                for i, idx in enumerate(top_indices)
+            ]
 
-        return top_tokens
+            return top_tokens
 
     def _calculate_concentration(self, attention_matrix: np.ndarray) -> float:
         """Calculate how concentrated the attention is (Gini coefficient)"""

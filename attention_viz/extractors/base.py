@@ -69,6 +69,7 @@ class AttentionExtractor:
         inputs: Dict[str, torch.Tensor],
         layer_indices: Optional[Union[int, List[int]]] = None,
         head_indices: Optional[Union[int, List[int]]] = None,
+        attention_type: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Extract attention maps for given inputs
@@ -77,9 +78,7 @@ class AttentionExtractor:
             inputs: Preprocessed inputs from the model processor
             layer_indices: Which layers to extract (default: all)
             head_indices: Which heads to extract (default: all)
-
-        Returns:
-            Dictionary containing attention maps and metadata
+            attention_type: Which attention to extract ('text_self', 'vision_self', 'cross')
         """
         # Clear previous attention maps
         self.attention_maps.clear()
@@ -91,8 +90,27 @@ class AttentionExtractor:
         # If hooks didn't capture attention but model outputs have them
         if len(self.attention_maps) == 0 and hasattr(outputs, "attentions") and outputs.attentions:
             # Use attention from model outputs directly
-            for i, attn in enumerate(outputs.attentions):
-                self.attention_maps[f"layer_{i}"] = [attn.detach().cpu()]
+            # But now respect attention_type!
+            
+            if attention_type == "text_self" and hasattr(outputs, 'text_model_output'):
+                # Extract text attention
+                for i, attn in enumerate(outputs.text_model_output.attentions):
+                    self.attention_maps[f"text_layer_{i}"] = [attn.detach().cpu()]
+                    
+            elif attention_type == "vision_self" and hasattr(outputs, 'vision_model_output'):
+                # Extract vision attention
+                for i, attn in enumerate(outputs.vision_model_output.attentions):
+                    self.attention_maps[f"vision_layer_{i}"] = [attn.detach().cpu()]
+                    
+            else:
+                # Default behavior - extract all available attention
+                if hasattr(outputs, 'text_model_output') and outputs.text_model_output.attentions:
+                    for i, attn in enumerate(outputs.text_model_output.attentions):
+                        self.attention_maps[f"text_layer_{i}"] = [attn.detach().cpu()]
+                        
+                if hasattr(outputs, 'vision_model_output') and outputs.vision_model_output.attentions:
+                    for i, attn in enumerate(outputs.vision_model_output.attentions):
+                        self.attention_maps[f"vision_layer_{i}"] = [attn.detach().cpu()]
 
         # Process collected attention maps
         processed_attention = self._process_attention_maps(layer_indices, head_indices)
@@ -107,6 +125,7 @@ class AttentionExtractor:
             "layer_names": list(self.attention_maps.keys()),
             "num_layers": len(self.attention_maps),
             "num_heads": processed_attention[0].shape[0] if processed_attention else 0,
+            "attention_type": attention_type,  # Include this in output
         }
 
     def _process_attention_maps(
