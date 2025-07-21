@@ -57,14 +57,9 @@ class AttentionHeatmap:
         # FIXED: Handle masking properly
         if mask_padding and "attention_mask" in attention_data["token_info"]:
             mask = attention_data["token_info"]["attention_mask"][0]
-            # Only apply mask if dimensions match
             if mask.shape[0] == attention_matrix.shape[0]:
                 attention_matrix = self._apply_mask(attention_matrix, mask)
-            else:
-                print(f"Warning: Mask shape {mask.shape} doesn't match attention shape {attention_matrix.shape}. Skipping masking.")
 
-        title = kwargs.pop('title', None)
-        attention_type = kwargs.pop('attention_type', None)
 
         # Create heatmap
         sns.heatmap(
@@ -82,10 +77,11 @@ class AttentionHeatmap:
         # Add labels
         self._add_labels(ax, attention_data, inputs)
 
-        if title:
-            plt.title(title, fontsize=14, pad=20)
+        custom_title = kwargs.get('title', None)
+        if custom_title:
+            plt.title(custom_title, fontsize=14, pad=20)
         else:
-            # Default title based on what we're actually showing
+            # Default title based on attention type
             model_type = attention_data.get('model_type', 'Transformer')
             attn_type = attention_data.get('attention_type', 'self')
             
@@ -101,6 +97,7 @@ class AttentionHeatmap:
             plt.title(default_title, fontsize=14, pad=20)
         
         plt.tight_layout()
+
 
         return VisualizationResult(fig)
 
