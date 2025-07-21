@@ -63,6 +63,9 @@ class AttentionHeatmap:
             else:
                 print(f"Warning: Mask shape {mask.shape} doesn't match attention shape {attention_matrix.shape}. Skipping masking.")
 
+        title = kwargs.pop('title', None)
+        attention_type = kwargs.pop('attention_type', None)
+
         # Create heatmap
         sns.heatmap(
             attention_matrix,
@@ -74,15 +77,29 @@ class AttentionHeatmap:
             ax=ax,
             vmin=0,  # Set minimum value
             vmax=attention_matrix.max() if attention_matrix.max() > 0 else 1,  # Set maximum value
-            **kwargs,
         )
 
         # Add labels
         self._add_labels(ax, attention_data, inputs)
 
-        # Use custom title if provided, otherwise use a descriptive default
-        title = kwargs.get('title', 'Self-Attention Heatmap')
-        plt.title(title, fontsize=14, pad=20)
+        if title:
+            plt.title(title, fontsize=14, pad=20)
+        else:
+            # Default title based on what we're actually showing
+            model_type = attention_data.get('model_type', 'Transformer')
+            attn_type = attention_data.get('attention_type', 'self')
+            
+            if attn_type == 'text_self':
+                default_title = f"{model_type} Text Self-Attention"
+            elif attn_type == 'vision_self':
+                default_title = f"{model_type} Vision Self-Attention"
+            elif attn_type == 'cross':
+                default_title = f"{model_type} Cross-Modal Attention"
+            else:
+                default_title = "Attention Heatmap"
+                
+            plt.title(default_title, fontsize=14, pad=20)
+        
         plt.tight_layout()
 
         return VisualizationResult(fig)

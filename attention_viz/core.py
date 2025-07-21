@@ -232,16 +232,19 @@ class AttentionVisualizer:
         # Get top-k indices
         top_indices = np.argsort(avg_attention)[-top_k:][::-1].copy()
 
-        # Decode tokens
+        # Decode tokens individually to avoid concatenation
+        tokens = []
         if self.processor is not None:
-            tokens = self.processor.decode(input_ids[0][top_indices], skip_special_tokens=False)
-            tokens = tokens.split()
+            for idx in top_indices:
+                # Decode each token separately
+                token = self.processor.decode([input_ids[0][idx]], skip_special_tokens=False)
+                tokens.append(token.strip())
         else:
             tokens = [f"token_{i}" for i in top_indices]
 
         # Create (token, attention_score) pairs
         top_tokens = [
-            (tokens[i] if i < len(tokens) else f"token_{idx}", avg_attention[idx])
+            (tokens[i], avg_attention[idx])
             for i, idx in enumerate(top_indices)
         ]
 
