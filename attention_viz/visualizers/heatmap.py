@@ -1,5 +1,6 @@
+# attention_viz/visualizers/heatmap.py - FIXED VERSION
 """
-Attention heatmap visualizations
+Attention heatmap visualizations - Fixed for CLIP
 """
 
 import io
@@ -53,10 +54,14 @@ class AttentionHeatmap:
         # Create figure
         fig, ax = plt.subplots(figsize=self.figure_size)
 
-        # Apply padding mask if available
+        # FIXED: Handle masking properly
         if mask_padding and "attention_mask" in attention_data["token_info"]:
             mask = attention_data["token_info"]["attention_mask"][0]
-            attention_matrix = self._apply_mask(attention_matrix, mask)
+            # Only apply mask if dimensions match
+            if mask.shape[0] == attention_matrix.shape[0]:
+                attention_matrix = self._apply_mask(attention_matrix, mask)
+            else:
+                print(f"Warning: Mask shape {mask.shape} doesn't match attention shape {attention_matrix.shape}. Skipping masking.")
 
         # Create heatmap
         sns.heatmap(
@@ -67,63 +72,32 @@ class AttentionHeatmap:
             annot=show_values,
             fmt=".2f" if show_values else None,
             ax=ax,
+            vmin=0,  # Set minimum value
+            vmax=attention_matrix.max() if attention_matrix.max() > 0 else 1,  # Set maximum value
             **kwargs,
         )
 
         # Add labels
         self._add_labels(ax, attention_data, inputs)
 
-        plt.title("Cross-Modal Attention Heatmap", fontsize=14, pad=20)
-        plt.tight_layout()
-
-        return VisualizationResult(fig)
-
-    def create_comparison(
-        self,
-        attention_data_list: List[Dict[str, Any]],
-        inputs_list: List[Dict[str, Any]],
-        comparison_type: str = "side_by_side",
-        **kwargs,
-    ) -> "VisualizationResult":
-        """Create comparison visualization of multiple attention patterns"""
-        n_comparisons = len(attention_data_list)
-
-        if comparison_type == "side_by_side":
-            fig, axes = plt.subplots(1, n_comparisons, figsize=(6 * n_comparisons, 6))
-            if n_comparisons == 1:
-                axes = [axes]
-        else:  # grid layout
-            n_rows = int(np.ceil(np.sqrt(n_comparisons)))
-            n_cols = int(np.ceil(n_comparisons / n_rows))
-            fig, axes = plt.subplots(n_rows, n_cols, figsize=(6 * n_cols, 6 * n_rows))
-            axes = axes.flatten()
-
-        for idx, (attention_data, inputs) in enumerate(zip(attention_data_list, inputs_list)):
-            ax = axes[idx]
-            attention_matrix = attention_data["attention_maps"][-1]
-
-            if attention_matrix.ndim > 2:
-                attention_matrix = attention_matrix.mean(axis=0)
-
-            sns.heatmap(
-                attention_matrix, cmap=self.default_cmap, square=True, cbar=True, ax=ax, **kwargs
-            )
-
-            ax.set_title(f"Input {idx + 1}", fontsize=12)
-
-        # Hide unused subplots
-        for idx in range(n_comparisons, len(axes)):
-            axes[idx].set_visible(False)
-
-        plt.suptitle("Attention Pattern Comparison", fontsize=16)
+        plt.title("Self-Attention Heatmap", fontsize=14, pad=20)  # Changed title
         plt.tight_layout()
 
         return VisualizationResult(fig)
 
     def _apply_mask(self, attention_matrix: np.ndarray, mask: np.ndarray) -> np.ndarray:
         """Apply attention mask to hide padding tokens"""
-        # Expand mask to match attention matrix dimensions
-        mask_2d = mask[:, None] * mask[None, :]
+        # FIXED: Ensure mask dimensions match attention matrix
+        if len(mask.shape) == 1:
+            # Create 2D mask from 1D mask
+            mask_2d = mask[:, None] * mask[None, :]
+            
+            # Make sure dimensions match
+            if mask_2d.shape != attention_matrix.shape:
+                print(f"Warning: Mask shape {mask_2d.shape} doesn't match attention shape {attention_matrix.shape}")
+                return attention_matrix
+        else:
+            mask_2d = mask
 
         # Set masked positions to NaN (will appear white in heatmap)
         masked_attention = attention_matrix.copy()
@@ -133,34 +107,29 @@ class AttentionHeatmap:
 
     def _add_labels(self, ax, attention_data: Dict[str, Any], inputs: Dict[str, Any]):
         """Add token labels to axes"""
-        # Get modality boundaries
-        boundaries = attention_data["token_info"]["modality_boundaries"]
-        text_end = boundaries["text_end"]
-        image_end = boundaries["image_end"]
-
-        # Create labels
-        labels = []
-        for i in range(boundaries["total_length"]):
-            if i < text_end:
-                labels.append(f"T{i}")  # Text token
-            else:
-                labels.append(f"I{i-text_end}")  # Image patch
-
+        # Get sequence length from attention matrix
+        seq_len = ax.get_xlim()[1]
+        
+        # Create simple numeric labels
+        labels = [str(i) for i in range(int(seq_len))]
+        
         # Set labels (truncate if too many)
-        max_labels = 50
+        max_labels = 30
         if len(labels) > max_labels:
             step = len(labels) // max_labels
-            labels = labels[::step]
-            ax.set_xticks(range(0, len(labels) * step, step))
-            ax.set_yticks(range(0, len(labels) * step, step))
+            labels_subset = labels[::step]
+            ax.set_xticks(range(0, len(labels), step))
+            ax.set_yticks(range(0, len(labels), step))
+            ax.set_xticklabels(labels_subset, rotation=45, ha="right")
+            ax.set_yticklabels(labels_subset)
         else:
             ax.set_xticks(range(len(labels)))
             ax.set_yticks(range(len(labels)))
+            ax.set_xticklabels(labels, rotation=45, ha="right")
+            ax.set_yticklabels(labels)
 
-        ax.set_xticklabels(labels, rotation=45, ha="right")
-        ax.set_yticklabels(labels)
-        ax.set_xlabel("Target Tokens", fontsize=12)
-        ax.set_ylabel("Source Tokens", fontsize=12)
+        ax.set_xlabel("Token Position", fontsize=12)
+        ax.set_ylabel("Token Position", fontsize=12)
 
 
 class VisualizationResult:
