@@ -1,6 +1,6 @@
-# attention_viz/visualizers/heatmap.py - FIXED VERSION
+# attention_viz/visualizers/heatmap.py - FIXED VERSION for BLIP
 """
-Attention heatmap visualizations - Fixed for CLIP
+Attention heatmap visualizations - Fixed for CLIP and BLIP
 """
 
 import io
@@ -47,63 +47,142 @@ class AttentionHeatmap:
         # Use the last layer by default
         attention_matrix = attention_maps[-1]
 
-        # Aggregate heads if requested
-        if aggregate_heads and attention_matrix.ndim > 2:
-            attention_matrix = attention_matrix.mean(axis=0)
-
-        # Create figure
-        fig, ax = plt.subplots(figsize=self.figure_size)
-
-        # FIXED: Handle masking properly
-        if mask_padding and "attention_mask" in attention_data["token_info"]:
-            mask = attention_data["token_info"]["attention_mask"][0]
-            # Only apply mask if dimensions match
-            if mask.shape[0] == attention_matrix.shape[0]:
-                attention_matrix = self._apply_mask(attention_matrix, mask)
-            else:
-                print(f"Warning: Mask shape {mask.shape} doesn't match attention shape {attention_matrix.shape}. Skipping masking.")
-
-        title = kwargs.pop('title', None)
-        attention_type = kwargs.pop('attention_type', None)
+        # FIXED: Handle different attention types differently
+        attention_type = attention_data.get('attention_type', 'self')
+        model_type = attention_data.get('model_type', 'Unknown')
         
-        # Create heatmap - DON'T pass **kwargs to avoid errors
-        sns.heatmap(
-            attention_matrix,
-            cmap=cmap or self.default_cmap,
-            square=True,
-            cbar_kws={"label": "Attention Weight"},
-            annot=show_values,
-            fmt=".2f" if show_values else None,
-            ax=ax,
-            vmin=0,
-            vmax=attention_matrix.max() if attention_matrix.max() > 0 else 1,
-        )
-        
-        # Add labels
-        self._add_labels(ax, attention_data, inputs)
-        
-        # Use appropriate title
-        if title:
-            plt.title(title, fontsize=14, pad=20)
-        else:
-            # Default title based on what we're actually showing
-            model_type = attention_data.get('model_type', 'Transformer')
-            attn_type = attention_data.get('attention_type', 'self')
+        # For BLIP cross-attention, we need special handling
+        if model_type == 'BLIP' and attention_type == 'cross':
+            # BLIP cross-attention shape: [heads, text_tokens, image_tokens]
+            # We want to visualize how text tokens attend to image patches
             
-            if attn_type == 'text_self':
-                default_title = f"{model_type} Text Self-Attention"
-            elif attn_type == 'vision_self':
-                default_title = f"{model_type} Vision Self-Attention"
-            elif attn_type == 'cross':
-                default_title = f"{model_type} Cross-Modal Attention"
-            else:
-                default_title = "Attention Heatmap"
+            if aggregate_heads and attention_matrix.ndim > 2:
+                attention_matrix = attention_matrix.mean(axis=0)
+            
+            # Create figure with subplots for each text token
+            n_text_tokens = attention_matrix.shape[0]
+            n_cols = min(n_text_tokens, 4)
+            n_rows = (n_text_tokens + n_cols - 1) // n_cols
+            
+            fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 4, n_rows * 4))
+            if n_rows == 1:
+                axes = axes.reshape(1, -1) if n_cols > 1 else [[axes]]
+            elif n_cols == 1:
+                axes = axes.reshape(-1, 1)
+            
+            # Get token names if available
+            token_names = self._get_token_names(inputs, attention_data)
+            
+            for token_idx in range(n_text_tokens):
+                row = token_idx // n_cols
+                col = token_idx % n_cols
+                ax = axes[row, col] if n_rows > 1 or n_cols > 1 else axes
                 
-            plt.title(default_title, fontsize=14, pad=20)
+                # Get attention for this text token to all image patches
+                token_attention = attention_matrix[token_idx]  # Shape: (577,) for BLIP
+                
+                # Skip CLS token and reshape to grid
+                if len(token_attention) == 577:  # BLIP's typical size
+                    image_attention = token_attention[1:].reshape(24, 24)
+                elif len(token_attention) == 50:  # CLIP's typical size
+                    image_attention = token_attention[1:].reshape(7, 7)
+                else:
+                    # Try to find reasonable square shape
+                    grid_size = int(np.sqrt(len(token_attention) - 1))
+                    if grid_size * grid_size == len(token_attention) - 1:
+                        image_attention = token_attention[1:].reshape(grid_size, grid_size)
+                    else:
+                        # Fallback: just show as 1D
+                        image_attention = token_attention.reshape(-1, 1)
+                
+                # Create heatmap
+                sns.heatmap(
+                    image_attention,
+                    cmap=cmap or self.default_cmap,
+                    square=True,
+                    cbar=True,
+                    ax=ax,
+                    vmin=0,
+                    vmax=image_attention.max() if image_attention.max() > 0 else 1,
+                    cbar_kws={'shrink': 0.8}
+                )
+                
+                # Set title
+                token_name = token_names[token_idx] if token_idx < len(token_names) else f"Token {token_idx}"
+                ax.set_title(f"{token_name}", fontsize=12)
+                ax.set_xlabel("")
+                ax.set_ylabel("")
+                
+                # Remove ticks for clarity
+                ax.set_xticks([])
+                ax.set_yticks([])
+            
+            # Hide unused subplots
+            for idx in range(n_text_tokens, n_rows * n_cols):
+                row = idx // n_cols
+                col = idx % n_cols
+                axes[row, col].set_visible(False)
+            
+            # Overall title
+            title = kwargs.get('title', f"{model_type} Cross-Modal Attention")
+            plt.suptitle(title, fontsize=16)
+            
+        else:
+            # Original behavior for self-attention
+            if aggregate_heads and attention_matrix.ndim > 2:
+                attention_matrix = attention_matrix.mean(axis=0)
+
+            # Create figure
+            fig, ax = plt.subplots(figsize=self.figure_size)
+
+            # Apply masking if requested
+            if mask_padding and "attention_mask" in attention_data["token_info"]:
+                mask = attention_data["token_info"]["attention_mask"][0]
+                if mask.shape[0] == attention_matrix.shape[0]:
+                    attention_matrix = self._apply_mask(attention_matrix, mask)
+
+            # Create heatmap
+            sns.heatmap(
+                attention_matrix,
+                cmap=cmap or self.default_cmap,
+                square=True,
+                cbar_kws={"label": "Attention Weight"},
+                annot=show_values,
+                fmt=".2f" if show_values else None,
+                ax=ax,
+                vmin=0,
+                vmax=attention_matrix.max() if attention_matrix.max() > 0 else 1,
+            )
+            
+            # Add labels
+            self._add_labels(ax, attention_data, inputs)
+            
+            # Title
+            title = kwargs.get('title', "Attention Heatmap")
+            plt.title(title, fontsize=14, pad=20)
         
         plt.tight_layout()
 
         return VisualizationResult(fig)
+    
+    def _get_token_names(self, inputs: Dict[str, Any], attention_data: Dict[str, Any]) -> List[str]:
+        """Get token names from inputs"""
+        token_names = []
+        
+        if "input_ids" in inputs and hasattr(inputs["input_ids"], "shape"):
+            input_ids = inputs["input_ids"][0] if inputs["input_ids"].dim() > 1 else inputs["input_ids"]
+            
+            # Try to decode tokens if we have a processor/tokenizer reference
+            # For now, return generic names
+            for i in range(len(input_ids)):
+                if i == 0:
+                    token_names.append("[CLS/BOS]")
+                elif i == len(input_ids) - 1:
+                    token_names.append("[SEP/EOS]")
+                else:
+                    token_names.append(f"Token {i}")
+        
+        return token_names
 
     def _apply_mask(self, attention_matrix: np.ndarray, mask: np.ndarray) -> np.ndarray:
         """Apply attention mask to hide padding tokens"""

@@ -1,5 +1,5 @@
 """
-Base attention extraction functionality - FIXED FOR BLIP
+Base attention extraction functionality - FIXED FOR BOTH BLIP AND CLIP
 """
 
 from collections import defaultdict
@@ -26,66 +26,88 @@ class AttentionExtractor:
         """Identify the model type to use appropriate extraction strategy"""
         model_class_name = self.model.__class__.__name__
 
-        # FIXED: Better BLIP detection
+        # Better BLIP detection
         if any(x in model_class_name for x in ["BLIP", "Blip", "blip"]):
             from .model_adapters import BLIPAdapter
             self.adapter = BLIPAdapter()
+            self.model_type = "BLIP"
         elif "CLIP" in model_class_name:
             from .model_adapters import CLIPAdapter
             self.adapter = CLIPAdapter()
+            self.model_type = "CLIP"
         elif "Flamingo" in model_class_name:
             from .model_adapters import BLIPAdapter  # Placeholder
             self.adapter = BLIPAdapter()
+            self.model_type = "Flamingo"
         else:
             # Check module name as fallback
             module_name = self.model.__class__.__module__
             if "blip" in module_name.lower():
                 from .model_adapters import BLIPAdapter
                 self.adapter = BLIPAdapter()
+                self.model_type = "BLIP"
+            elif "clip" in module_name.lower():
+                from .model_adapters import CLIPAdapter
+                self.adapter = CLIPAdapter()
+                self.model_type = "CLIP"
             else:
                 # Default adapter
                 self.adapter = BaseModelAdapter()
+                self.model_type = "Unknown"
 
     def _register_hooks(self):
         """Register forward hooks to capture attention weights"""
 
         def create_hook(name):
             def hook(module, input, output):
-                if isinstance(output, tuple) and len(output) > 1:
-                    attention_weights = output[1]
-                    
-                    if attention_weights is not None:
-                        if isinstance(attention_weights, torch.Tensor):
-                            # Check if this needs softmax (for BLIP cross-attention)
-                            # If values have negatives, it's pre-softmax
+                # BLIP cross-attention handling
+                if "cross" in name.lower() or "encoder_attn" in name.lower():
+                    if isinstance(output, tuple):
+                        attention_weights = None
+                        
+                        # Check each element in the tuple for cross-attention
+                        for i, elem in enumerate(output):
+                            if isinstance(elem, torch.Tensor) and elem.dim() == 4:
+                                # For BLIP cross-attention: check if last dim is ~577 (image tokens)
+                                if elem.shape[-1] > 500 and elem.shape[-1] < 600:
+                                    attention_weights = elem
+                                    break
+                        
+                        if attention_weights is not None:
+                            # Apply softmax if needed
                             if (attention_weights < 0).any():
-                                # Apply softmax to convert logits to attention weights
                                 attention_weights = torch.softmax(attention_weights, dim=-1)
                             
+                            if name not in self.attention_maps:
+                                self.attention_maps[name] = []
                             self.attention_maps[name].append(attention_weights.detach().cpu())
-                            
-                        elif isinstance(attention_weights, tuple):
-                            # BLIP case - tuple of (self_attention, cross_attention)
-                            for idx, attn_component in enumerate(attention_weights):
-                                if attn_component is not None and isinstance(attn_component, torch.Tensor):
-                                    # Check if needs softmax
-                                    if (attn_component < 0).any():
-                                        attn_component = torch.softmax(attn_component, dim=-1)
-                                    
-                                    if idx == 0:
-                                        key = f"{name}_self"
-                                    else:
-                                        key = f"{name}_cross"
-                                    self.attention_maps[key].append(attn_component.detach().cpu())
                 
-                elif hasattr(output, "attentions"):
-                    if output.attentions is not None:
-                        for attn in output.attentions:
-                            if attn is not None:
-                                # Check if needs softmax
-                                if (attn < 0).any():
-                                    attn = torch.softmax(attn, dim=-1)
-                                self.attention_maps[name].append(attn.detach().cpu())
+                # Self-attention handling (for both CLIP and BLIP)
+                elif "self" in name.lower() or ("attention" in name.lower() and "cross" not in name.lower()):
+                    if isinstance(output, tuple) and len(output) > 1:
+                        # Standard transformer output format
+                        attention_weights = output[1]
+                        
+                        if attention_weights is not None and isinstance(attention_weights, torch.Tensor):
+                            # Verify it's attention (4D tensor)
+                            if attention_weights.dim() == 4:
+                                # Apply softmax if needed
+                                if (attention_weights < 0).any():
+                                    attention_weights = torch.softmax(attention_weights, dim=-1)
+                                
+                                if name not in self.attention_maps:
+                                    self.attention_maps[name] = []
+                                self.attention_maps[name].append(attention_weights.detach().cpu())
+                    
+                    # Some models return attention directly as tensor
+                    elif isinstance(output, torch.Tensor) and output.dim() == 4:
+                        attention_weights = output
+                        if (attention_weights < 0).any():
+                            attention_weights = torch.softmax(attention_weights, dim=-1)
+                        
+                        if name not in self.attention_maps:
+                            self.attention_maps[name] = []
+                        self.attention_maps[name].append(attention_weights.detach().cpu())
 
             return hook
 
@@ -117,19 +139,63 @@ class AttentionExtractor:
 
         # Forward pass with hooks
         with torch.no_grad():
-            outputs = self.model(**inputs, output_attentions=True)
-
-        # If hooks didn't capture attention but model outputs have them
-        if len(self.attention_maps) == 0 and hasattr(outputs, "attentions") and outputs.attentions:
-            # Use attention from model outputs directly
-            for i, attn in enumerate(outputs.attentions):
-                self.attention_maps[f"layer_{i}"] = [attn.detach().cpu()]
-
-        # For BLIP, also check for cross_attentions in outputs
-        if hasattr(outputs, 'cross_attentions') and outputs.cross_attentions:
-            for i, cross_attn in enumerate(outputs.cross_attentions):
-                if cross_attn is not None:
-                    self.attention_maps[f"cross_layer_{i}"] = [cross_attn.detach().cpu()]
+            # BLIP-specific handling for cross-attention
+            if self.model_type == "BLIP" and hasattr(self.model, 'text_decoder') and attention_type == "cross":
+                # Run vision model first
+                vision_outputs = self.model.vision_model(
+                    pixel_values=inputs.get('pixel_values'),
+                    output_attentions=True,
+                    return_dict=True
+                )
+                
+                # Then run text decoder with cross-attention
+                outputs = self.model.text_decoder(
+                    input_ids=inputs['input_ids'],
+                    attention_mask=inputs.get('attention_mask'),
+                    encoder_hidden_states=vision_outputs.last_hidden_state,
+                    encoder_attention_mask=torch.ones(
+                        vision_outputs.last_hidden_state.size()[:-1], 
+                        dtype=torch.long,
+                        device=vision_outputs.last_hidden_state.device
+                    ),
+                    output_attentions=True,
+                    return_dict=True
+                )
+                
+                # Manually add cross-attentions if hooks didn't capture them
+                if hasattr(outputs, 'cross_attentions') and outputs.cross_attentions:
+                    for i, cross_attn in enumerate(outputs.cross_attentions):
+                        key = f"text_decoder.layer_{i}.cross_attention"
+                        if key not in self.attention_maps or not self.attention_maps[key]:
+                            self.attention_maps[key] = [cross_attn.detach().cpu()]
+                            
+            else:
+                # Standard forward pass for other cases (CLIP, BLIP self-attention)
+                outputs = self.model(**inputs, output_attentions=True)
+                
+                # If hooks didn't capture attention, try to extract from outputs
+                if len(self.attention_maps) == 0:
+                    # CLIP-specific extraction
+                    if self.model_type == "CLIP":
+                        # Text encoder attentions
+                        if hasattr(outputs, 'text_model_output') and hasattr(outputs.text_model_output, 'attentions'):
+                            if outputs.text_model_output.attentions is not None:
+                                for i, attn in enumerate(outputs.text_model_output.attentions):
+                                    if attn is not None:
+                                        self.attention_maps[f"text_encoder.layer_{i}"] = [attn.detach().cpu()]
+                        
+                        # Vision encoder attentions
+                        if hasattr(outputs, 'vision_model_output') and hasattr(outputs.vision_model_output, 'attentions'):
+                            if outputs.vision_model_output.attentions is not None:
+                                for i, attn in enumerate(outputs.vision_model_output.attentions):
+                                    if attn is not None:
+                                        self.attention_maps[f"vision_encoder.layer_{i}"] = [attn.detach().cpu()]
+                    
+                    # Generic fallback for other models
+                    elif hasattr(outputs, 'attentions') and outputs.attentions:
+                        for i, attn in enumerate(outputs.attentions):
+                            if attn is not None:
+                                self.attention_maps[f"layer_{i}"] = [attn.detach().cpu()]
 
         # Filter by attention type if specified
         if attention_type:
@@ -137,18 +203,21 @@ class AttentionExtractor:
             
             if attention_type == "cross":
                 # Only keep cross-attention maps
-                filtered_maps = {k: v for k, v in self.attention_maps.items() if 'cross' in k}
+                for k, v in self.attention_maps.items():
+                    if 'cross' in k.lower():
+                        filtered_maps[k] = v
             elif attention_type == "text_self":
                 # Only keep text self-attention
-                filtered_maps = {k: v for k, v in self.attention_maps.items() 
-                               if ('text' in k or 'decoder' in k) and 'cross' not in k}
+                for k, v in self.attention_maps.items():
+                    if ('text' in k.lower() or 'decoder' in k.lower()) and 'cross' not in k.lower():
+                        filtered_maps[k] = v
             elif attention_type == "vision_self":
                 # Only keep vision self-attention
-                filtered_maps = {k: v for k, v in self.attention_maps.items() 
-                               if 'vision' in k and 'cross' not in k}
+                for k, v in self.attention_maps.items():
+                    if 'vision' in k.lower() and 'cross' not in k.lower():
+                        filtered_maps[k] = v
             
-            if filtered_maps:
-                self.attention_maps = filtered_maps
+            self.attention_maps = filtered_maps
 
         # Process collected attention maps
         processed_attention = self._process_attention_maps(layer_indices, head_indices)
@@ -159,11 +228,12 @@ class AttentionExtractor:
         return {
             "attention_maps": processed_attention,
             "token_info": token_info,
-            "model_outputs": outputs,
+            "model_outputs": outputs if 'outputs' in locals() else None,
             "layer_names": list(self.attention_maps.keys()),
             "num_layers": len(self.attention_maps),
             "num_heads": processed_attention[0].shape[0] if processed_attention else 0,
             "attention_type": attention_type,
+            "model_type": self.model_type,
         }
 
     def _process_attention_maps(
@@ -204,10 +274,8 @@ class AttentionExtractor:
                     head_indices = [head_indices]
                 attention_array = attention_array[:, head_indices, :, :]
 
-            # Average over batch dimension if needed
-            if attention_array.shape[0] > 1:
-                attention_array = attention_array.mean(axis=0)
-            else:
+            # For most uses, we want to remove batch dimension
+            if attention_array.shape[0] == 1:
                 attention_array = attention_array.squeeze(0)
 
             processed.append(attention_array)
