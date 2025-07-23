@@ -87,39 +87,65 @@ class CLIPAdapter(BaseModelAdapter):
 
 
 class BLIPAdapter(BaseModelAdapter):
-    """Adapter for BLIP models"""
+    """Adapter for BLIP models - FIXED for cross-attention"""
 
     def get_attention_modules(self, model: torch.nn.Module) -> List[Tuple[str, torch.nn.Module]]:
-        """Get BLIP-specific attention modules"""
+        """Get BLIP-specific attention modules including cross-attention"""
         attention_modules = []
 
-        # BLIP has different architecture than CLIP
-        # Text encoder
-        if hasattr(model, "text_encoder"):
-            if hasattr(model.text_encoder, "encoder"):
-                for i, layer in enumerate(model.text_encoder.encoder.layer):
+        # BLIP has a text decoder with cross-attention layers
+        if hasattr(model, "text_decoder"):
+            # Get all decoder layers
+            if hasattr(model.text_decoder, "bert") and hasattr(model.text_decoder.bert, "encoder"):
+                encoder = model.text_decoder.bert.encoder
+                
+                # Iterate through decoder layers
+                for i, layer in enumerate(encoder.layer):
+                    # Self-attention
                     if hasattr(layer, "attention"):
-                        attention_modules.append((f"text_encoder.layer_{i}", layer.attention))
+                        attention_modules.append((f"text_decoder.layer_{i}.self_attention", layer.attention))
+                    
+                    # Cross-attention (this is what we want for cross-modal visualization)
+                    if hasattr(layer, "crossattention"):
+                        attention_modules.append((f"text_decoder.layer_{i}.cross_attention", layer.crossattention))
+            
+            # Alternative structure for some BLIP variants
+            elif hasattr(model.text_decoder, "layers"):
+                for i, layer in enumerate(model.text_decoder.layers):
+                    if hasattr(layer, "self_attn"):
+                        attention_modules.append((f"text_decoder.layer_{i}.self_attention", layer.self_attn))
+                    if hasattr(layer, "encoder_attn"):  # Cross-attention
+                        attention_modules.append((f"text_decoder.layer_{i}.cross_attention", layer.encoder_attn))
 
-        # Vision encoder
+        # Vision encoder self-attention
         if hasattr(model, "vision_model"):
             if hasattr(model.vision_model, "encoder") and hasattr(model.vision_model.encoder, "layers"):
                 for i, layer in enumerate(model.vision_model.encoder.layers):
                     if hasattr(layer, "self_attn"):
-                        attention_modules.append((f"vision_encoder.layer_{i}", layer.self_attn))
+                        attention_modules.append((f"vision_encoder.layer_{i}.self_attention", layer.self_attn))
 
-        # Cross-modal encoder (if present in BLIP variant)
-        if hasattr(model, "text_decoder"):
-            if hasattr(model.text_decoder, "bert") and hasattr(model.text_decoder.bert, "encoder"):
-                for i, layer in enumerate(model.text_decoder.bert.encoder.layer):
-                    if hasattr(layer, "crossattention"):
-                        attention_modules.append((f"cross_attention.layer_{i}", layer.crossattention))
+        # If no modules found, try generic search
+        if not attention_modules:
+            print("Warning: No BLIP-specific attention modules found. Using generic search.")
+            # Look for cross-attention specifically
+            for name, module in model.named_modules():
+                if "crossattention" in name.lower() or "cross_attention" in name.lower():
+                    attention_modules.append((name, module))
+            
+            # Then add other attention modules
+            attention_modules.extend(super().get_attention_modules(model))
+
+        print(f"Found {len(attention_modules)} attention modules in BLIP model")
+        # Debug: print module names
+        for name, _ in attention_modules[:5]:  # Show first 5
+            print(f"  - {name}")
+        if len(attention_modules) > 5:
+            print(f"  ... and {len(attention_modules) - 5} more")
 
         return attention_modules
 
     def get_modality_boundaries(self, inputs: Dict[str, torch.Tensor]) -> Dict[str, int]:
         """Get boundaries for BLIP inputs"""
-        # BLIP processes inputs differently depending on the task
         text_length = 0
         image_length = 0
 
@@ -127,18 +153,16 @@ class BLIPAdapter(BaseModelAdapter):
             text_length = inputs["input_ids"].shape[1]
 
         if "pixel_values" in inputs:
-            # BLIP uses similar patch encoding as CLIP
-            patch_size = 16
-            image_size = inputs["pixel_values"].shape[-1]
-            patches_per_side = image_size // patch_size
-            image_length = patches_per_side * patches_per_side + 1
+            # BLIP typically uses 577 patches (24x24 grid + 1 CLS token)
+            # for 384x384 images with 16x16 patches
+            image_length = 577  # Standard for BLIP-base
 
         return {
             "text_start": 0,
             "text_end": text_length,
-            "image_start": text_length,
-            "image_end": text_length + image_length,
-            "total_length": text_length + image_length,
+            "image_start": 0,
+            "image_end": image_length,
+            "total_length": max(text_length, image_length),
         }
 
 

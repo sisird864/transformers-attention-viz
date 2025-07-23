@@ -51,23 +51,35 @@ class AttentionVisualizer:
 
     def _identify_model_type(self) -> str:
         """Identify the model type"""
-        model_class = self.model.__class__.__name__
-        if "CLIP" in model_class:
-            return "CLIP"
-        elif "BLIP" in model_class:
+        model_class_name = self.model.__class__.__name__
+        
+        # Check for BLIP models (handles BlipForConditionalGeneration, etc.)
+        if any(x in model_class_name for x in ["BLIP", "Blip", "blip"]):
             return "BLIP"
-        elif "Flamingo" in model_class:
+        elif "CLIP" in model_class_name:
+            return "CLIP"
+        elif "Flamingo" in model_class_name:
             return "Flamingo"
         else:
-            return "Unknown"
+            # Also check the module path (e.g., transformers.models.blip.modeling_blip)
+            module_path = self.model.__class__.__module__
+            if "blip" in module_path.lower():
+                return "BLIP"
+            elif "clip" in module_path.lower():
+                return "CLIP"
+            else:
+                return "Unknown"
+
     
     def _check_cross_attention_support(self) -> bool:
         """Check if model supports cross-modal attention"""
         # CLIP does NOT have cross-modal attention
         if self.model_type == "CLIP":
             return False
-        # BLIP and Flamingo DO have cross-modal attention
-        elif self.model_type in ["BLIP", "Flamingo"]:
+        # BLIP DOES have cross-modal attention
+        elif self.model_type == "BLIP":
+            return True
+        elif self.model_type in ["Flamingo"]:
             return True
         else:
             # Check for cross-attention layers in unknown models
