@@ -32,7 +32,9 @@ class CLIPAdapter(BaseModelAdapter):
 
         # Vision encoder attention layers
         if hasattr(model, "vision_model"):
-            if hasattr(model.vision_model, "encoder") and hasattr(model.vision_model.encoder, "layers"):
+            if hasattr(model.vision_model, "encoder") and hasattr(
+                model.vision_model.encoder, "layers"
+            ):
                 for i, layer in enumerate(model.vision_model.encoder.layers):
                     if hasattr(layer, "self_attn"):
                         attention_modules.append((f"vision_encoder.layer_{i}", layer.self_attn))
@@ -54,7 +56,7 @@ class CLIPAdapter(BaseModelAdapter):
         """Get boundaries for CLIP inputs"""
         text_length = 0
         image_length = 0
-        
+
         if "input_ids" in inputs:
             text_length = inputs["input_ids"].shape[1]
 
@@ -62,7 +64,7 @@ class CLIPAdapter(BaseModelAdapter):
             # Calculate number of image patches
             # Standard CLIP uses different patch sizes
             image_size = inputs["pixel_values"].shape[-1]
-            
+
             # Common CLIP configurations
             if image_size == 224:
                 patch_size = 32  # For clip-vit-base-patch32
@@ -74,7 +76,7 @@ class CLIPAdapter(BaseModelAdapter):
                 # Fallback
                 patch_size = 16
                 patches_per_side = image_size // patch_size
-                
+
             image_length = patches_per_side * patches_per_side + 1  # +1 for CLS token
 
         return {
@@ -98,31 +100,43 @@ class BLIPAdapter(BaseModelAdapter):
             # Get all decoder layers
             if hasattr(model.text_decoder, "bert") and hasattr(model.text_decoder.bert, "encoder"):
                 encoder = model.text_decoder.bert.encoder
-                
+
                 # Iterate through decoder layers
                 for i, layer in enumerate(encoder.layer):
                     # Self-attention
                     if hasattr(layer, "attention"):
-                        attention_modules.append((f"text_decoder.layer_{i}.self_attention", layer.attention))
-                    
+                        attention_modules.append(
+                            (f"text_decoder.layer_{i}.self_attention", layer.attention)
+                        )
+
                     # Cross-attention (this is what we want for cross-modal visualization)
                     if hasattr(layer, "crossattention"):
-                        attention_modules.append((f"text_decoder.layer_{i}.cross_attention", layer.crossattention))
-            
+                        attention_modules.append(
+                            (f"text_decoder.layer_{i}.cross_attention", layer.crossattention)
+                        )
+
             # Alternative structure for some BLIP variants
             elif hasattr(model.text_decoder, "layers"):
                 for i, layer in enumerate(model.text_decoder.layers):
                     if hasattr(layer, "self_attn"):
-                        attention_modules.append((f"text_decoder.layer_{i}.self_attention", layer.self_attn))
+                        attention_modules.append(
+                            (f"text_decoder.layer_{i}.self_attention", layer.self_attn)
+                        )
                     if hasattr(layer, "encoder_attn"):  # Cross-attention
-                        attention_modules.append((f"text_decoder.layer_{i}.cross_attention", layer.encoder_attn))
+                        attention_modules.append(
+                            (f"text_decoder.layer_{i}.cross_attention", layer.encoder_attn)
+                        )
 
         # Vision encoder self-attention
         if hasattr(model, "vision_model"):
-            if hasattr(model.vision_model, "encoder") and hasattr(model.vision_model.encoder, "layers"):
+            if hasattr(model.vision_model, "encoder") and hasattr(
+                model.vision_model.encoder, "layers"
+            ):
                 for i, layer in enumerate(model.vision_model.encoder.layers):
                     if hasattr(layer, "self_attn"):
-                        attention_modules.append((f"vision_encoder.layer_{i}.self_attention", layer.self_attn))
+                        attention_modules.append(
+                            (f"vision_encoder.layer_{i}.self_attention", layer.self_attn)
+                        )
 
         # If no modules found, try generic search
         if not attention_modules:
@@ -131,7 +145,7 @@ class BLIPAdapter(BaseModelAdapter):
             for name, module in model.named_modules():
                 if "crossattention" in name.lower() or "cross_attention" in name.lower():
                     attention_modules.append((name, module))
-            
+
             # Then add other attention modules
             attention_modules.extend(super().get_attention_modules(model))
 

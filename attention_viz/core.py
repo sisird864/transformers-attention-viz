@@ -31,7 +31,7 @@ class AttentionVisualizer:
         self.model = model
         self.processor = processor
         self.extractor = AttentionExtractor(model)
-        
+
         # Identify model capabilities
         self.model_type = self._identify_model_type()
         self.has_cross_attention = self._check_cross_attention_support()
@@ -40,7 +40,7 @@ class AttentionVisualizer:
         self.heatmap_viz = AttentionHeatmap()
         self.flow_viz = AttentionFlow()
         self.evolution_viz = LayerEvolution()
-        
+
         # Warn about model limitations
         if not self.has_cross_attention:
             warnings.warn(
@@ -52,7 +52,7 @@ class AttentionVisualizer:
     def _identify_model_type(self) -> str:
         """Identify the model type"""
         model_class_name = self.model.__class__.__name__
-        
+
         # Check for BLIP models (handles BlipForConditionalGeneration, etc.)
         if any(x in model_class_name for x in ["BLIP", "Blip", "blip"]):
             return "BLIP"
@@ -70,7 +70,6 @@ class AttentionVisualizer:
             else:
                 return "Unknown"
 
-    
     def _check_cross_attention_support(self) -> bool:
         """Check if model supports cross-modal attention"""
         # CLIP does NOT have cross-modal attention
@@ -120,39 +119,41 @@ class AttentionVisualizer:
                 print(f"Model supports cross-modal attention. Visualizing cross-attention.")
             else:
                 attention_type = "vision_self"
-                print(f"Model does NOT support cross-modal attention. Visualizing vision self-attention.")
+                print(
+                    f"Model does NOT support cross-modal attention. Visualizing vision self-attention."
+                )
                 print("To see text self-attention, use attention_type='text_self'")
-        
+
         # Validate attention type for model
         if attention_type == "cross" and not self.has_cross_attention:
             raise ValueError(
                 f"Model '{self.model_type}' does not support cross-modal attention. "
                 f"Use attention_type='text_self' or 'vision_self' instead."
             )
-        
+
         # Update the visualization title based on attention type
         if attention_type == "text_self":
-            kwargs['title'] = f"Text Self-Attention ({self.model_type})"
+            kwargs["title"] = f"Text Self-Attention ({self.model_type})"
         elif attention_type == "vision_self":
-            kwargs['title'] = f"Vision Self-Attention ({self.model_type})"
+            kwargs["title"] = f"Vision Self-Attention ({self.model_type})"
         elif attention_type == "cross":
-            kwargs['title'] = f"Cross-Modal Attention ({self.model_type})"
-        
+            kwargs["title"] = f"Cross-Modal Attention ({self.model_type})"
+
         # Store attention type for use by visualizers
-        kwargs['attention_type'] = attention_type
-        
+        kwargs["attention_type"] = attention_type
+
         # Rest of the original method...
         inputs = self._preprocess_inputs(image, text)
         attention_data = self.extractor.extract(
-            inputs, 
-            layer_indices=layer_indices, 
+            inputs,
+            layer_indices=layer_indices,
             head_indices=head_indices,
-            attention_type=attention_type
+            attention_type=attention_type,
         )
-        
+
         # Pass model info to visualizers
-        attention_data['model_type'] = self.model_type
-        attention_data['attention_type'] = attention_type
+        attention_data["model_type"] = self.model_type
+        attention_data["attention_type"] = attention_type
 
         if visualization_type == "heatmap":
             return self.heatmap_viz.create(attention_data, inputs, **kwargs)
@@ -201,12 +202,10 @@ class AttentionVisualizer:
         # Auto-select attention type
         if attention_type == "auto":
             attention_type = "vision_self" if not self.has_cross_attention else "cross"
-        
+
         inputs = self._preprocess_inputs(image, text)
         attention_data = self.extractor.extract(
-            inputs, 
-            layer_indices=[layer_index],
-            attention_type=attention_type
+            inputs, layer_indices=[layer_index], attention_type=attention_type
         )
 
         # Calculate statistics
@@ -232,7 +231,6 @@ class AttentionVisualizer:
             "model_type": self.model_type,
             "sequence_length": attention_matrix.shape[-1],  # Add this to help identify what type
         }
-
 
     def _calculate_entropy(self, attention_matrix: np.ndarray) -> np.ndarray:
         """Calculate attention entropy for each head"""
@@ -272,9 +270,9 @@ class AttentionVisualizer:
                     row = patch_idx // 7
                     col = patch_idx % 7
                     label = f"Patch_({row},{col})"
-                
+
                 top_items.append((label, avg_attention[idx]))
-            
+
             return top_items
         else:
             # For text attention, decode tokens
@@ -283,7 +281,9 @@ class AttentionVisualizer:
                 for idx in top_indices:
                     # Decode each token separately
                     if idx < len(input_ids[0]):
-                        token = self.processor.decode([input_ids[0][idx]], skip_special_tokens=False)
+                        token = self.processor.decode(
+                            [input_ids[0][idx]], skip_special_tokens=False
+                        )
                         tokens.append(token.strip())
                     else:
                         tokens.append(f"token_{idx}")
@@ -291,10 +291,7 @@ class AttentionVisualizer:
                 tokens = [f"token_{i}" for i in top_indices]
 
             # Create (token, attention_score) pairs
-            top_tokens = [
-                (tokens[i], avg_attention[idx])
-                for i, idx in enumerate(top_indices)
-            ]
+            top_tokens = [(tokens[i], avg_attention[idx]) for i, idx in enumerate(top_indices)]
 
             return top_tokens
 
