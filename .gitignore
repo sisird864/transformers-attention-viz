@@ -153,8 +153,8 @@ Thumbs.db
 *.jpg
 *.jpeg
 *.gif
-!docs/images/*
-!examples/images/*
+#!docs/images/*
+#!examples/images/*
 *.mp4
 *.avi
 *.mov
