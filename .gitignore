@@ -149,10 +149,10 @@ cython_debug/
 Thumbs.db
 
 # Project specific
-*.png
-*.jpg
-*.jpeg
-*.gif
+#*.png
+#*.jpg
+#*.jpeg
+#*.gif
 #!docs/images/*
 #!examples/images/*
 *.mp4
