@@ -1,124 +1,133 @@
 # 🔍 Transformers Attention Viz
 
-Interactive attention visualization for multi-modal transformer models (CLIP, BLIP, Flamingo, etc.)
-![Transformers Attention Viz](https://raw.githubusercontent.com/sisird864/transformers-attention-viz/main/docs/images/hero_image.png)
+Interactive attention visualization for multi-modal transformer models
+
+[![PyPI version](https://badge.fury.io/py/transformers-attention-viz.svg)](https://badge.fury.io/py/transformers-attention-viz)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Transformers](https://img.shields.io/badge/transformers-4.30+-orange.svg)](https://github.com/huggingface/transformers)
 
+**Visualize and understand cross-modal attention in vision-language models like BLIP and CLIP**
+
+## 🚀 Try it Now!
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sisird864/transformers-attention-viz/blob/main/examples/demo_quickstart.ipynb) **Quick Start** - Get started in 2 minutes
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sisird864/transformers-attention-viz/blob/main/examples/demo_comprehensive.ipynb) **Full Demo** - Explore all features
+
 ## 🎯 Features
 
-- 📊 **Interactive Visualizations**: Explore attention patterns between text and images
-- 🔄 **Multi-Layer Support**: Visualize attention across all transformer layers
-- 🎨 **Customizable**: Multiple color schemes and visualization styles
-- 📸 **Export Ready**: Generate publication-quality figures
+- 📊 **Cross-Modal Attention**: Visualize how text tokens attend to image regions in BLIP
+- 🔄 **Multi-Layer Support**: Analyze attention patterns across all transformer layers
+- 📈 **Attention Statistics**: Compute entropy, concentration, and top attended regions
+- 🎨 **Publication Ready**: Export high-quality figures for papers (PNG, PDF, SVG)
 - 🚀 **Easy Integration**: Works seamlessly with HuggingFace models
+- 🖥️ **Interactive Dashboard**: Explore attention patterns in real-time (local only)
 
-## 🚀 Quick Start
-
-### Installation
+## 📦 Installation
 
 ```bash
 pip install transformers-attention-viz
 ```
 
-### Basic Usage
+## 💡 Basic Usage
 
 ```python
-from transformers import CLIPModel, CLIPProcessor
-from attention_viz import AttentionVisualizer
+from transformers_attention_viz import AttentionVisualizer
+from transformers import BlipProcessor, BlipForConditionalGeneration
+from PIL import Image
 
-# Load model
-model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
-processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+# Load BLIP model (supports cross-modal attention)
+model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
+processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
 
 # Create visualizer
-visualizer = AttentionVisualizer(model)
+visualizer = AttentionVisualizer(model, processor)
 
-# Visualize attention
+# Load your image
 image = Image.open("cat.jpg")
-text = "a photo of a cat"
+text = "a fluffy orange cat"
 
+# Visualize cross-modal attention
 viz = visualizer.visualize(
     image=image,
     text=text,
-    layer_index=-1  # Last layer
+    visualization_type="heatmap",
+    attention_type="cross"  # text -> image attention
 )
 viz.show()
+
+# Get attention statistics
+stats = visualizer.get_attention_stats(image, text, attention_type="cross")
+print(f"Average entropy: {stats['entropy'].mean():.3f}")
+print(f"Top attended regions: {stats['top_tokens'][:3]}")
 ```
 
-## 📸 Examples
+## 📸 Example Visualizations
 
-### Cross-Modal Attention Heatmap
-
-![Cross-modal attention example](https://raw.githubusercontent.com/sisird864/transformers-attention-viz/main/docs/images/cross_attention_example.png)
-
-### Layer-wise Attention Evolution
-
-![Cross-modal attention example](https://raw.githubusercontent.com/sisird864/transformers-attention-viz/main/docs/images/layer_evolution_example.png)
-
-### Interactive Dashboard
-
-![Cross-modal attention example](https://raw.githubusercontent.com/sisird864/transformers-attention-viz/main/docs/images/dashboard_example.png)
-
-## 🛠️ Advanced Usage
-
-### Visualizing Specific Layers and Heads
+### Cross-Modal Attention (BLIP)
+Each text token gets its own heatmap showing attention to image patches:
 
 ```python
-# Visualize specific layers
+# Visualizing "a fluffy orange cat sitting on a surface"
+# Generates separate heatmaps for each token
+```
+![BLIP Cross-Modal Attention](images/blip_cross_attention_example.png)
+
+### Attention Statistics
+```python
+# Example output:
+Average entropy: 4.251
+Top attended regions: 
+  1. Patch_(24,4): 0.0429
+  2. Patch_(20,1): 0.0395
+  3. Patch_(23,4): 0.0391
+```
+
+## 🛠️ Advanced Features
+
+### Multi-Layer Analysis
+```python
+# Visualize attention at different layers
 viz = visualizer.visualize(
     image=image,
     text=text,
-    layer_indices=[0, 6, 11],  # First, middle, and last layers
-    head_indices=[0, 4, 8]     # Specific attention heads
+    layer_indices=[0, 5, 11],  # First, middle, last
+    attention_type="cross"
 )
-
-# Get attention statistics
-stats = visualizer.get_attention_stats(image, text)
-print(f"Attention entropy: {stats['entropy']}")
-print(f"Top attended tokens: {stats['top_tokens']}")
 ```
 
-### Comparing Multiple Inputs
-
+### Export for Publications
 ```python
-# Compare attention patterns
-comparison = visualizer.compare_attention(
-    images=[image1, image2],
-    texts=["a cat", "a dog"],
-    layer_index=-1
-)
-comparison.save("attention_comparison.png")
+# Save high-quality figures
+viz.save("attention_figure.png", dpi=300)  # For papers
+viz.save("attention_figure.pdf")           # For LaTeX
+viz.save("attention_figure.svg")           # For web
 ```
 
 ### Interactive Dashboard
-
 ```python
-from attention_viz import launch_dashboard
+from transformers_attention_viz import launch_dashboard
 
-# Launch interactive exploration tool
+# Launch interactive exploration tool (requires local environment)
 launch_dashboard(model, processor)
 # Opens at http://localhost:7860
 ```
 
-## 🔧 Supported Models
+## 🤖 Supported Models
 
-- ✅ CLIP (all variants)
-- ✅ BLIP
-- ✅ BLIP-2
-- ✅ Flamingo (coming soon)
-- ✅ CoCa (coming soon)
-- ✅ Custom vision-language models
+| Model | Cross-Modal Attention | Self-Attention | Status |
+|-------|---------------------|----------------|---------|
+| BLIP | ✅ | ✅ | Fully Supported |
+| CLIP | ❌ | ✅ | Self-Attention Only |
+| BLIP-2 | ✅ | ✅ | Coming Soon |
+| Flamingo | ✅ | ✅ | In Development |
 
-## 📚 Documentation
+## 📊 Understanding the Visualizations
 
-Full documentation available at <https://transformers-attention-viz.readthedocs.io>
-
-- [Installation Guide](docs/installation.md)
-- [API Reference](docs/api_reference.md)
-- [Tutorials](docs/tutorials.md)
-- [Contributing](CONTRIBUTING.md)
+- **BLIP Cross-Modal Attention**: Shows how each text token attends to the 24×24 grid of image patches
+- **Attention Entropy**: Lower entropy indicates more focused attention
+- **Diffuse Attention**: BLIP often shows uniform attention, especially on simple images - this is normal behavior
 
 ## 🤝 Contributing
 
@@ -126,7 +135,7 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 ```bash
 # Clone the repo
-git clone https://github.com/YOUR_USERNAME/transformers-attention-viz.git
+git clone https://github.com/sisird864/transformers-attention-viz.git
 cd transformers-attention-viz
 
 # Install in development mode
@@ -142,33 +151,50 @@ If you use this tool in your research, please cite:
 
 ```bibtex
 @software{transformers-attention-viz,
-  author = {Your Name},
+  author = {Sisir Doppalapudi},
   title = {Transformers Attention Viz: Interactive Attention Visualization for Multi-Modal Transformers},
   year = {2024},
-  url = {https://github.com/YOUR_USERNAME/transformers-attention-viz}
+  publisher = {GitHub},
+  url = {https://github.com/sisird864/transformers-attention-viz}
 }
 ```
 
+## 🚧 Known Limitations
+
+- **v0.1.13**:
+  - Individual attention head visualization (aggregate_heads=False) not fully supported
+  - Flow visualization has dimension compatibility issues with BLIP
+  - BLIP text self-attention not captured (cross-modal and vision self-attention work fine)
+
+## 🛤️ Roadmap
+
+- [ ] Full support for individual attention heads
+- [ ] Fix flow visualization for BLIP
+- [ ] Add BLIP-2 support
+- [ ] Add LLaVA support
+- [ ] 3D attention visualization
+- [ ] Attention pattern export to TensorBoard
+- [ ] Real-time video attention tracking
+
 ## 📄 License
 
-MIT License - see <LICENSE> for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## 🙏 Acknowledgments
 
 - HuggingFace team for the amazing Transformers library
-- OpenAI for CLIP
 - Salesforce Research for BLIP
+- OpenAI for CLIP
+- All contributors and users of this tool
 
-## 🛤️ Roadmap
+## ⭐ Support
 
-- [ ] Support for Flamingo models
-- [ ] 3D attention visualization
-- [ ] Attention pattern export to TensorBoard
-- [ ] Real-time video attention tracking
-- [ ] Attention-based model debugging tools
+If you find this tool useful, please consider:
+- Starring this repository
+- Sharing it with colleagues
+- Contributing improvements
+- Citing it in your research
 
-## 🚧 Known Issues (v0.1.3)
+---
 
-- Evolution and Flow visualizations may fail with certain text lengths
-- Working on fixes for v0.1.4
-- Heatmap visualization works reliably for all inputs
+Made with ❤️ for the ML research community
