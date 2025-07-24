@@ -72,7 +72,7 @@ Each text token gets its own heatmap showing attention to image patches:
 # Visualizing "a fluffy orange cat sitting on a surface"
 # Generates separate heatmaps for each token
 ```
-![BLIP Cross-Modal Attention](images/blip_cross_attention_example.png)
+![BLIP Cross-Modal Attention](docs/images/blip_cross_attention_example.png)
 
 ### Attention Statistics
 ```python
