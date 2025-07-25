@@ -11,9 +11,7 @@ Interactive attention visualization for multi-modal transformer models
 
 ## 🚀 Try it Now!
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sisird864/transformers-attention-viz/blob/main/examples/demo_quickstart.ipynb) **Quick Start** - Get started in 2 minutes
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sisird864/transformers-attention-viz/blob/main/examples/demo_comprehensive.ipynb) **Full Demo** - Explore all features
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sisird864/transformers-attention-viz/blob/master/demo.ipynb) **Full Demo** - Explore all features
 
 ## 🎯 Features
 
