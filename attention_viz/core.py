@@ -3,7 +3,7 @@ Core attention visualization class that correctly handles different model types
 """
 
 import warnings
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -221,7 +221,7 @@ class AttentionVisualizer:
         # Calculate attention concentration
         concentration = self._calculate_concentration(attention_matrix)
 
-        return {
+        result: Dict[str, Any] = {
             "entropy": entropy,
             "top_tokens": top_tokens,
             "concentration": concentration,
@@ -229,8 +229,9 @@ class AttentionVisualizer:
             "std_attention": attention_matrix.std(axis=(0, 1)),
             "attention_type": attention_type,
             "model_type": self.model_type,
-            "sequence_length": attention_matrix.shape[-1],  # Add this to help identify what type
+            "sequence_length": attention_matrix.shape[-1],
         }
+        return result
 
     def _calculate_entropy(self, attention_matrix: np.ndarray) -> np.ndarray:
         """Calculate attention entropy for each head"""
