@@ -221,7 +221,7 @@ class AttentionVisualizer:
         # Calculate attention concentration
         concentration = self._calculate_concentration(attention_matrix)
 
-        return {  # type: ignore[return-value]
+        return {
             "entropy": entropy,
             "top_tokens": top_tokens,
             "concentration": concentration,
