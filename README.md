@@ -159,7 +159,7 @@ If you use this tool in your research, please cite:
 
 ## 🚧 Known Limitations
 
-- **v0.1.13**:
+- **v0.1.15**:
   - Individual attention head visualization (aggregate_heads=False) not fully supported
   - Flow visualization has dimension compatibility issues with BLIP
   - BLIP text self-attention not captured (cross-modal and vision self-attention work fine)
