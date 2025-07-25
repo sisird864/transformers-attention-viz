@@ -15,6 +15,39 @@ from attention_viz.visualizers import AttentionHeatmap
 NUMPY_AVAILABLE = ensure_numpy_available()
 
 
+@pytest.fixture(autouse=True)
+def mock_attention_extraction(monkeypatch):
+    """Mock attention extraction to always return valid data for tests"""
+
+    def mock_extract(self, inputs, layer_indices=None, head_indices=None, attention_type=None):
+        # Return valid mock attention data
+        return {
+            "attention_maps": [np.random.rand(8, 10, 10)],  # 8 heads, 10x10 attention
+            "token_info": {
+                "input_ids": np.array([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]),
+                "num_tokens": 10,
+                "attention_mask": np.ones((1, 10)),
+                "modality_boundaries": {
+                    "text_start": 0,
+                    "text_end": 10,
+                    "image_start": 0,
+                    "image_end": 0,
+                    "total_length": 10,
+                },
+            },
+            "model_outputs": None,
+            "layer_names": ["layer_0", "layer_1", "layer_2"],
+            "num_layers": 3,
+            "num_heads": 8,
+            "attention_type": attention_type or "vision_self",
+            "model_type": "Unknown",
+        }
+
+    from attention_viz.extractors.base import AttentionExtractor
+
+    monkeypatch.setattr(AttentionExtractor, "extract", mock_extract)
+
+
 class MockAttentionLayer(torch.nn.Module):
     """Mock attention layer that properly returns attention weights"""
 
